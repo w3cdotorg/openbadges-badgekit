@@ -66,9 +66,10 @@ exports.redirect = function (target, params, status) {
     return res.redirect(status || 302, url);
   };
 };
-
+var sassMiddleware = require('gulp-sass');
 exports.sass = function (root, prefix) {
-  return sass.middleware({
+return sassMiddleware ({
+//	return sass.middleware({
     root: root,
     src: 'scss',
     dest: 'css',

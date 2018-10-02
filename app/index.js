@@ -21,6 +21,19 @@ const persona = require('express-persona-observer');
 const http = require('http');
 const helmet = require('helmet');
 
+var gulp = require('gulp');
+var sass = require('gulp-sass');
+var tabzilla = require('mozilla-tabzilla');
+gulp.task('sass', function () {
+	gulp.src('*.scss')
+	.pipe(sass({
+		includePaths: tabzilla.includePaths
+	}))
+	.pipe(gulp.dest('css'));
+
+});
+
+
 var app = express();
 
 var env = new nunjucks.Environment(new nunjucks.FileSystemLoader([path.join(__dirname, './templates'),
