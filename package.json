@@ -25,7 +25,6 @@
     "db-migrate": "~0.6.3",
     "express": "^4.21.2",
     "express-monkey-patch": "~0.1.1",
-    "express-persona-observer": "git+https://github.com/christensenep/express-persona-observer.git#multiple-buttons",
     "formidable": "^2.1.5",
     "helmet": "^7.2.0",
     "jwt-simple": "^0.5.6",
