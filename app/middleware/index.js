@@ -2,7 +2,6 @@ var clientSessions = require('client-sessions');
 var config = require('../lib/config');
 var formatUrl = require('url').format;
 var parseUrl = require('url').parse;
-var sass = require('node-sass');
 var xtend = require('xtend');
 var jwt = require('jwt-simple');
 var util = require('util');
@@ -66,17 +65,7 @@ exports.redirect = function (target, params, status) {
     return res.redirect(status || 302, url);
   };
 };
-var sassMiddleware = require('gulp-sass');
-exports.sass = function (root, prefix) {
-return sassMiddleware ({
-//	return sass.middleware({
-    root: root,
-    src: 'scss',
-    dest: 'css',
-    prefix: prefix,
-    debug: config('debug', false)
-  });
-};
+exports.sass = require('../lib/sass-middleware');
 
 exports.verifyPermission = function verifyPermission (siteAdminList, deniedPage) {
   if (typeof siteAdminList === 'string' || siteAdminList instanceof String) {
