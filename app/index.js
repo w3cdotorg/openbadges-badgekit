@@ -11,6 +11,19 @@ else {
 }
 
 const config = require('./lib/config');
+
+if (process.env.NODE_ENV === 'production') {
+  const weak = ['devsecret', 'dev-cookie-secret', 'dev-api-secret', 'blah', undefined, ''];
+  const MIN_SECRET_LENGTH = 32;
+  ['COOKIE_SECRET', 'OPENBADGER_SECRET', 'API_SECRET'].forEach(function (name) {
+    const value = process.env[name];
+    if (weak.indexOf(value) !== -1)
+      throw new Error(name + ' must be set to a strong value in production');
+    if (value.length < MIN_SECRET_LENGTH)
+      throw new Error(name + ' must be at least ' + MIN_SECRET_LENGTH + ' characters long in production');
+  });
+}
+
 const nunjucks = require('nunjucks');
 const express = require('express');
 const bodyParser = require('body-parser');

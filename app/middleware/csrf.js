@@ -14,18 +14,14 @@ function whitelisted (list, input) {
   return false;
 }
 
-function uid (len) {
-  var buf = [];
-  var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  var charlen = chars.length;
-  for (var i = 0; i < len; ++i) {
-    buf.push(chars[getRandomInt(0, charlen - 1)]);
-  }
-  return buf.join('');
-}
+var crypto = require('crypto');
 
-function getRandomInt (min, max) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
+// CSRF tokens only need to be compared for equality (see `val != token`
+// below), so a plain hex string from a CSPRNG is sufficient — no need to
+// preserve the old alphanumeric alphabet. `len` here is the number of random
+// bytes, matching the previous call site's `uid(24)`.
+function uid (len) {
+  return crypto.randomBytes(len).toString('hex');
 }
 
 exports = module.exports = function (options) {

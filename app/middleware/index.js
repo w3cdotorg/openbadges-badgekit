@@ -14,13 +14,31 @@ var COOKIE_KEY = config('COOKIE_KEY', 'session');
 var COOKIE_SECRET = config('COOKIE_SECRET');
 var API_SECRET = config('API_SECRET');
 
+// config() returns raw env values, which are always strings when set via
+// the environment (e.g. `SECURE_COOKIES=false` in the shell/.env yields the
+// STRING 'false', not the boolean false) — a bare `'false'` is truthy, so
+// without this coercion the cookie would end up marked Secure over plain
+// HTTP whenever SECURE_COOKIES was exported at all, breaking session
+// persistence on non-TLS deployments. Coerce explicitly instead of relying
+// on JS truthiness.
+var SECURE_COOKIES = config('SECURE_COOKIES', false);
+SECURE_COOKIES = SECURE_COOKIES === true || SECURE_COOKIES === 'true';
+
 exports.session = function session () {
   return clientSessions({
     cookieName: COOKIE_KEY,
     secret: COOKIE_SECRET,
-    maxAge: (7 * 24 * 60 * 60 * 1000), //one week
+    // client-sessions has no top-level `maxAge` option — a `maxAge` key here
+    // (as opposed to `cookie.maxAge`) is silently ignored, so the "one week"
+    // intent was never honored and sessions fell back to the 24h default.
+    // `duration` is the real option for this.
+    duration: (7 * 24 * 60 * 60 * 1000), // one week
     cookie: {
-      httpOnly: true
+      httpOnly: true,
+      // Only mark the cookie Secure when the app is actually served over TLS
+      // (or behind a TLS-terminating proxy) — see SECURE_COOKIES in sample.env.
+      secureProxy: SECURE_COOKIES,
+      sameSite: 'lax'
     }
   });
 };
