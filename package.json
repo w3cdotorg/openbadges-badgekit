@@ -24,7 +24,6 @@
     "data-uri-to-buffer": "^3.0.1",
     "db-migrate": "~0.6.3",
     "express": "^4.21.2",
-    "express-monkey-patch": "~0.1.1",
     "formidable": "^2.1.5",
     "helmet": "^7.2.0",
     "jwt-simple": "^0.5.6",

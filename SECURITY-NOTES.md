@@ -7,16 +7,48 @@ security pass (production secrets fail-fast, cookie/CSRF hardening, and
 
 ## `npm audit --omit=dev` — result
 
-As of this pass, `npm audit --omit=dev` reports **32 vulnerabilities**
-(1 low, 4 moderate, 19 high, 8 critical). `npm audit fix` (no `--force`) was
-attempted; it rewrote `package-lock.json` (mostly de-duplicating
-`badgekit-api-client`'s nested `node_modules` entries into top-level ones)
-but the vulnerability count was **identical before and after** (still 32) —
-i.e. it made no real remediation, just lockfile churn. That change was
-reverted rather than committed, since it doesn't fix anything and adds
-unrelated diff noise. No HIGH/CRITICAL finding in this tree is resolvable by
-a minor/patch bump; every real fix requires `--force` and a breaking
-major-version bump. Each accepted item is below.
+As of this pass, `npm audit --omit=dev` reports **23 vulnerabilities**
+(3 moderate, 12 high, 8 critical) — down from an initial **32**
+(1 low, 4 moderate, 19 high, 8 critical) after removing the dead
+`express-monkey-patch` dependency (see "Resolved" below). `npm audit fix`
+(no `--force`) was also attempted; it rewrote `package-lock.json` (mostly
+de-duplicating `badgekit-api-client`'s nested `node_modules` entries into
+top-level ones) but the vulnerability count was **identical before and
+after** (32 → 32) — i.e. it made no real remediation, just lockfile churn.
+That change was reverted rather than committed, since it doesn't fix
+anything and adds unrelated diff noise. No remaining HIGH/CRITICAL finding
+in this tree is resolvable by a minor/patch bump or by dropping more dead
+code; every real fix left requires `--force` and a breaking major-version
+bump. Each accepted item is below.
+
+## Resolved
+
+### `express-monkey-patch` (dead dependency, was pulling in `express@3.4.8`/`connect@2.12.0`)
+
+`express-monkey-patch@~0.1.1` was a leftover dependency from before the app
+moved to Express 4's native named-routes support (see the comment atop
+`app/lib/named-routes.js`: "Express 4 replacement for express-monkey-patch
+(which subclassed the ..."). It was no longer `require()`d anywhere in the
+codebase (confirmed via `grep -rn "express-monkey-patch" app test`), yet it
+still pinned its own nested `express@3.4.8`, which pulled in an ancient
+`connect@2.12.0` and that version's vulnerable `cookie`, `cookie-signature`,
+`debug`, `fresh`, `multiparty`, `negotiator`, and `send`.
+
+**Fix:** `npm uninstall express-monkey-patch`. Removed from `package.json`
+`dependencies`; `package-lock.json` updated accordingly (50 packages
+removed, 14 added — net removal, since nothing else depended on the express
+3.x subtree).
+
+**Before/after (`npm audit --omit=dev`):** 32 vulnerabilities
+(1 low, 4 moderate, 19 high, 8 critical) → 23 vulnerabilities
+(3 moderate, 12 high, 8 critical). The entire `connect`/`express@3.4.8`
+chain (8 distinct advisory groups: `connect`, `cookie`, `cookie-signature`,
+`debug`, `fresh`, `multiparty`, `negotiator`, `send`) is gone, along with
+the "1 low" category.
+
+Verified after removal: full test suite still passes (8/8, `mocha`) and the
+dev server still boots and serves `/` correctly (see verification section
+of the task report) — confirming the dependency was in fact unused.
 
 ### `badgekit-api-client` — flagged as "Malware" (critical) — investigated, believed to be a name-collision false positive
 
@@ -58,20 +90,6 @@ all versions, no fix) against our dependency. However:
   entirely and eliminates the name-collision ambiguity for good. Tracked as
   follow-up, out of scope for this pass.
 
-### `express@3.4.8` / `connect@2.12.0` chain (high) — via `express-monkey-patch`
-
-`express-monkey-patch@0.1.1` pins its own **nested** `express@3.4.8`
-(distinct from the app's own `express@^4.21.2`), dragging in an ancient
-`connect@2.12.0` and its vulnerable `cookie`, `cookie-signature`, `debug`,
-`fresh`, `multiparty`, `negotiator`, `send`. `npm audit fix` cannot bump
-these without `--force` (breaking `express-monkey-patch`'s pinned peer).
-**Accepted risk:** `express-monkey-patch` is used narrowly (monkey-patch
-shim, not the app's live request-handling `express` instance — the app's
-own `express@4.x` instance is what actually serves requests, see
-`app/index.js`). Replacing/removing `express-monkey-patch` is a small,
-separate follow-up worth doing given how much of this audit traces back to
-its pinned legacy `express@3.x`.
-
 ### `db-migrate` 0.6.x pin — `moment`, `semver`, `serialize-javascript`/`mocha` chain (high)
 
 Same rationale as the API repo: `db-migrate` is intentionally pinned to
@@ -110,10 +128,11 @@ exists for these old versions; the real remediation is removing the
 
 - **`app/index.js`** — fail-fast check: when `NODE_ENV=production`,
   `COOKIE_SECRET`, `OPENBADGER_SECRET`, and `API_SECRET` must each not be
-  unset, empty, or a known weak/placeholder dev value (`devsecret`,
-  `dev-cookie-secret`, `dev-api-secret`, `blah`). Throws immediately at
-  boot rather than silently running production with dev-grade secrets.
-  Only applies to `NODE_ENV=production` — `test`/`development` boots are
+  unset, empty, a known weak/placeholder dev value (`devsecret`,
+  `dev-cookie-secret`, `dev-api-secret`, `blah`), or shorter than 32
+  characters. Throws immediately at boot rather than silently running
+  production with a dev-grade or trivially brute-forceable secret. Only
+  applies to `NODE_ENV=production` — `test`/`development` boots are
   unaffected.
 - **`app/middleware/index.js`** — session cookie hardening:
   - Fixed a real bug: `client-sessions` has **no top-level `maxAge`
@@ -132,8 +151,8 @@ exists for these old versions; the real remediation is removing the
   - Added `cookie.sameSite: 'lax'` — mitigates CSRF via cross-site
     navigation while still allowing top-level GET navigations (login links,
     etc.) to carry the session.
-  - Added `cookie.secureProxy: config('SECURE_COOKIES', false)` — marks the
-    cookie `Secure` (HTTPS-only) when running behind TLS (directly or via a
+  - Added `cookie.secureProxy: SECURE_COOKIES` — marks the cookie `Secure`
+    (HTTPS-only) when running behind TLS (directly or via a
     TLS-terminating proxy/load balancer), configurable via the new
     `SECURE_COOKIES` env var (documented in `sample.env`, defaults to
     `false` for local HTTP dev). `secureProxy` (rather than `secure`) is
@@ -142,6 +161,17 @@ exists for these old versions; the real remediation is removing the
     which breaks behind a TLS-terminating proxy; `secureProxy` is a
     supported option on the underlying `cookies` package that sets the
     `Secure` attribute without that same-process TLS-detection check.
+    **Fixed in a follow-up round:** `config()` returns raw env values, which
+    are always strings when set via the environment — `SECURE_COOKIES=false`
+    yields the *string* `'false'`, which is truthy in JS, so a bare
+    `config('SECURE_COOKIES', false)` passed straight into `secureProxy`
+    would have marked the cookie Secure over plain HTTP for any exported
+    value, breaking session persistence on non-TLS deployments. Now coerced
+    explicitly: `SECURE_COOKIES = SECURE_COOKIES === true || SECURE_COOKIES
+    === 'true'`. Verified empirically both ways — booted the dev server
+    with `SECURE_COOKIES=false` exported and confirmed via `curl -i` that
+    `Set-Cookie` has no `secure` attribute; then with `SECURE_COOKIES=true`
+    and confirmed `secure` is present.
 - **`app/middleware/csrf.js`** — CSRF token generation was using
   `Math.random()` (non-cryptographic PRNG) via a hand-rolled `uid()`/
   `getRandomInt()`. Replaced with `crypto.randomBytes(len).toString('hex')`.

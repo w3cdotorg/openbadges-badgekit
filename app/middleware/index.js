@@ -14,6 +14,16 @@ var COOKIE_KEY = config('COOKIE_KEY', 'session');
 var COOKIE_SECRET = config('COOKIE_SECRET');
 var API_SECRET = config('API_SECRET');
 
+// config() returns raw env values, which are always strings when set via
+// the environment (e.g. `SECURE_COOKIES=false` in the shell/.env yields the
+// STRING 'false', not the boolean false) — a bare `'false'` is truthy, so
+// without this coercion the cookie would end up marked Secure over plain
+// HTTP whenever SECURE_COOKIES was exported at all, breaking session
+// persistence on non-TLS deployments. Coerce explicitly instead of relying
+// on JS truthiness.
+var SECURE_COOKIES = config('SECURE_COOKIES', false);
+SECURE_COOKIES = SECURE_COOKIES === true || SECURE_COOKIES === 'true';
+
 exports.session = function session () {
   return clientSessions({
     cookieName: COOKIE_KEY,
@@ -27,7 +37,7 @@ exports.session = function session () {
       httpOnly: true,
       // Only mark the cookie Secure when the app is actually served over TLS
       // (or behind a TLS-terminating proxy) — see SECURE_COOKIES in sample.env.
-      secureProxy: config('SECURE_COOKIES', false),
+      secureProxy: SECURE_COOKIES,
       sameSite: 'lax'
     }
   });
