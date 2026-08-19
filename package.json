@@ -12,7 +12,7 @@
   },
   "scripts": {
     "start": "node app",
-    "test": "mocha -R spec test/*.test.js"
+    "test": "mocha test/*.test.js"
   },
   "dependencies": {
     "async": "^3.2.6",

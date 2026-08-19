@@ -6,7 +6,8 @@ var path = require('path');
 describe('Image Model', function () {
 
   before(function (done) {
-    helpers.recreateDatabase({ up: true }, done); 
+    this.timeout(30000);
+    helpers.recreateDatabase({ up: true }, done);
   });
 
   it('should accept image data', function (done) {

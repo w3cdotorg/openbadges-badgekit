@@ -4,7 +4,8 @@ var helpers = require('./');
 describe('Badge Model', function () {
 
   before(function (done) {
-    helpers.recreateDatabase({ up: true }, done); 
+    this.timeout(30000);
+    helpers.recreateDatabase({ up: true }, done);
   });
 
   it('should default to draft', function (done) {
