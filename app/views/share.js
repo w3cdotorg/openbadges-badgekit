@@ -1,6 +1,5 @@
 const Badge = require('../models/badge')("DATABASE");
 const Image = require('../models/image')("DATABASE");
-const request = require('request');
 const url = require('url');
 const validator = require('validator');
 const async = require('async');
@@ -151,30 +150,39 @@ exports.subscribe = function subscribe (req, res, next) {
   }
 
   // Fetch subscription URL content
-  var options = {
-    url: subscription,
-    json: true
-  };
+  fetch(subscription, {
+    headers: { 'Accept': 'application/json' },
+  }).then(function (fetchRes) {
+    return fetchRes.text().then(function (text) {
+      // Mirror the `res.statusCode` shape the old `request` library gave
+      // callers, since that's what this code (and its tests) check.
+      var rsp = { statusCode: fetchRes.status };
 
-  request(options, function (err, rsp, body) {
-    if (err)
-      return next(err);
+      if (rsp.statusCode >= 300) {
+        return res.render('share/home.html', {
+          subscription: req.body.subscription,
+          message: 'Error importing template'
+        });
+      }
 
-    if (rsp.statusCode >= 300) {
-      return res.render('share/home.html', {
-        subscription: req.body.subscription,
-        message: 'Error importing template'
-      });
-    }
+      var body;
+      try {
+        body = text ? JSON.parse(text) : null;
+      } catch (parseErr) {
+        return next(parseErr);
+      }
 
-    consumeTemplate(body, res.locals.makeContext, function (err, template) {
-      if (err)
-        return next(err);
+      consumeTemplate(body, res.locals.makeContext, function (err, template) {
+        if (err)
+          return next(err);
 
-      var redirect = res.locals.url('badge', {badgeId: template.id});
+        var redirect = res.locals.url('badge', {badgeId: template.id});
 
-      return res.redirect(303, redirect);
-    })
+        return res.redirect(303, redirect);
+      })
+    });
+  }).catch(function (err) {
+    return next(err);
   });
 }
 
