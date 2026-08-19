@@ -6,7 +6,8 @@ jobs:
     services:
       mysql:
         image: mysql:8.0
-        env: { MYSQL_ROOT_PASSWORD: root, MYSQL_DATABASE: badgekit_web_test }
+        env: { MYSQL_ROOT_PASSWORD: root, MYSQL_ROOT_HOST: '%',
+               MYSQL_DATABASE: badgekit_web_test }
         ports: ["3306:3306"]
         options: >-
           --health-cmd="mysqladmin ping -uroot -proot"
@@ -15,6 +16,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 26 }
+      - name: Switch root user to mysql_native_password
+        run: |
+          mysql -h127.0.0.1 -uroot -proot -e "
+            ALTER USER 'root'@'%' IDENTIFIED WITH mysql_native_password BY 'root';
+            FLUSH PRIVILEGES;
+          "
       - run: npm ci
       - run: npm test
         env: { NODE_ENV: test, TEST_DATABASE_DRIVER: mysql,
