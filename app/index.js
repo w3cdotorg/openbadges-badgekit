@@ -13,38 +13,32 @@ else {
 const config = require('./lib/config');
 const nunjucks = require('nunjucks');
 const express = require('express');
+const bodyParser = require('body-parser');
+const compression = require('compression');
+const morgan = require('morgan');
 const path = require('path');
 const middleware = require('./middleware');
 const views = require('./views');
 const api = require('./api');
-const persona = require('express-persona-observer');
+// Mozilla Persona was shut down in 2016; USE_PERSONA is only useful when
+// pointing at a self-hosted Persona stack
+const persona = config('USE_PERSONA', false)
+  ? require('express-persona-observer')
+  : require('./lib/dev-persona');
 const http = require('http');
 const helmet = require('helmet');
-
-var gulp = require('gulp');
-var sass = require('gulp-sass');
-var tabzilla = require('mozilla-tabzilla');
-gulp.task('sass', function () {
-	gulp.src('*.scss')
-	.pipe(sass({
-		includePaths: tabzilla.includePaths
-	}))
-	.pipe(gulp.dest('css'));
-
-});
-
 
 var app = express();
 
 var env = new nunjucks.Environment(new nunjucks.FileSystemLoader([path.join(__dirname, './templates'),
                                                                   path.join(__dirname, './static/templates')]),
-                                   { autoescape: true, watch: true });
+                                   { autoescape: true, watch: false });
 
 env.express(app);
 
 app.locals.newrelic = newrelic;
 
-require('express-monkey-patch')(app);
+require('./lib/named-routes')(app);
 
 var staticDir = path.join(__dirname, '/static');
 var staticRoot = '/static';
@@ -63,7 +57,7 @@ if (config('ENABLE_GELF_LOGS', false)) {
   app.use(logger.middleware());
 }
 else {
-  app.use(express.logger());
+  app.use(morgan('dev'));
 }
 
 if (process.env.HSTS_DISABLED != 'true') {
@@ -72,18 +66,20 @@ if (process.env.HSTS_DISABLED != 'true') {
 }
 if (process.env.DISABLE_XFO_HEADERS_DENY != 'true') {
   // No xframes allowed
-  app.use(helmet.xframe('deny'));
+  app.use(helmet.frameguard({ action: 'deny' }));
 }
 if (process.env.IEXSS_PROTECTION_DISABLED != 'true') {
 // Use XSS protection
-  app.use(helmet.iexss());
+  app.use(helmet.xssFilter());
 }
 
 // Hide that we're using Express
 app.use(helmet.hidePoweredBy());
 
-app.use(express.compress());
-app.use(express.bodyParser());
+app.use(compression());
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(require('./lib/multipart')());
 app.use(middleware.session());
 app.use(middleware.csrf({ whitelist: [ '/persona/login', '/persona/logout', '/persona/verify', '/api/user'] }));
 app.use(middleware.sass(staticDir, staticRoot));
@@ -179,7 +175,10 @@ app.all('*', function (req, res, next) {
 });
 
 app.use(function (err, req, res, next) {
-  const status = err.code || 500;
+  // err.code may be a system error string like ECONNREFUSED, not an HTTP status
+  const status = (typeof err.code === 'number' && err.code >= 400 && err.code < 600)
+    ? err.code
+    : 500;
   const msg = http.STATUS_CODES[status] || err.message;
 
   res.status(status).render('error.html', {
