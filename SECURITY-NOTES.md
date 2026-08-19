@@ -58,9 +58,12 @@ all versions, no fix) against our dependency. However:
 
 - Our dependency is **not resolved from the npm registry at all** — it's a
   git dependency pinned to an immutable commit SHA on a maintained fork:
-  `git+ssh://git@github.com/w3cdotorg/badgekit-api-client.git#1780452ae0c639748926f3fdc34ad3667dd89d74`
+  `git+https://github.com/w3cdotorg/badgekit-api-client.git#1780452ae0c639748926f3fdc34ad3667dd89d74`
   (pinned in commit `edf5c9c`, "fix: pin badgekit-api-client to an immutable
-  commit SHA"). `npm audit` matches advisories by **package name**
+  commit SHA"; `package-lock.json`'s `resolved` field was later corrected
+  from a stray `git+ssh://` back to `git+https://` to match
+  `package.json` — no auth/deploy key should be required to install this
+  dependency). `npm audit` matches advisories by **package name**
   regardless of resolution source, so a git-sourced package can be flagged
   by an advisory that was actually filed against a same-named package
   published to the npm registry.
@@ -182,3 +185,21 @@ exists for these old versions; the real remediation is removing the
   client-side JS under `app/static/js/`).
 - **`sample.env`** — documented the new `SECURE_COOKIES` variable
   (`SECURE_COOKIES=false`, comment: "set true behind TLS").
+- **`app/index.js`** — the production fail-fast block now also throws
+  unless `AUTH_MODE=oidc`, closing the gap where `NODE_ENV=production`
+  would otherwise happily boot with `AUTH_MODE=dev` (an unverified email
+  prompt, no identity check at all). Escape hatch:
+  `ALLOW_DEV_AUTH_IN_PRODUCTION=true`, documented with a warning in
+  `sample.env`, for deliberate break-glass/staging use only.
+- **`Dockerfile`** — added `ENV NODE_ENV=production`. The production
+  fail-fast checks above (weak-secret rejection, `AUTH_MODE=oidc`
+  requirement) are gated on `NODE_ENV === 'production'`, so a built image
+  now defaults into that posture instead of silently running as
+  `development` unless a deployer overrides it. Local/dev use (including
+  `badgekit-stack`'s `docker compose`) must explicitly set
+  `NODE_ENV: development` to keep dev behavior — see that repo's
+  `compose.yaml`.
+- **`.dockerignore`** (n/a here, tracked in `badgekit-api`'s notes) —
+  see the companion note in `badgekit-api/SECURITY-NOTES.md` for the
+  `.env` exclusion added there; this repo's `.dockerignore` already
+  excluded `.env`.

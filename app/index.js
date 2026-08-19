@@ -22,6 +22,17 @@ if (process.env.NODE_ENV === 'production') {
     if (value.length < MIN_SECRET_LENGTH)
       throw new Error(name + ' must be at least ' + MIN_SECRET_LENGTH + ' characters long in production');
   });
+
+  // The 'dev' auth mode prompts for an email address with NO verification
+  // whatsoever, so it must never run in production. Escape hatch:
+  // ALLOW_DEV_AUTH_IN_PRODUCTION=true, for break-glass/staging scenarios only.
+  if (process.env.AUTH_MODE !== 'oidc' && process.env.ALLOW_DEV_AUTH_IN_PRODUCTION !== 'true') {
+    throw new Error(
+      "AUTH_MODE must be 'oidc' in production (unverified dev auth is disabled). " +
+      'Set AUTH_MODE=oidc with the OIDC_* vars, or set ' +
+      'ALLOW_DEV_AUTH_IN_PRODUCTION=true to explicitly opt in to unverified dev auth.'
+    );
+  }
 }
 
 const nunjucks = require('nunjucks');
