@@ -20,10 +20,12 @@ const path = require('path');
 const middleware = require('./middleware');
 const views = require('./views');
 const api = require('./api');
-// Mozilla Persona was shut down in 2016; USE_PERSONA is only useful when
-// pointing at a self-hosted Persona stack
-const persona = config('USE_PERSONA', false)
-  ? require('express-persona-observer')
+// Mozilla Persona was shut down in 2016. AUTH_MODE: 'oidc' for real
+// deployments (real identity provider), 'dev' (default) = email prompt
+// with NO verification, for local development only.
+const AUTH_MODE = config('AUTH_MODE', 'dev');
+const persona = AUTH_MODE === 'oidc'
+  ? require('./lib/oidc-auth')
   : require('./lib/dev-persona');
 const http = require('http');
 const helmet = require('helmet');
@@ -81,7 +83,7 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(require('./lib/multipart')());
 app.use(middleware.session());
-app.use(middleware.csrf({ whitelist: [ '/persona/login', '/persona/logout', '/persona/verify', '/api/user'] }));
+app.use(middleware.csrf({ whitelist: [ '/persona/login', '/persona/logout', '/persona/verify', '/auth/login', '/auth/callback', '/api/user'] }));
 app.use(middleware.sass(staticDir, staticRoot));
 app.use(middleware.addCsrfToken);
 app.use(middleware.debug);
