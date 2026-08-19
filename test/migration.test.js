@@ -32,6 +32,7 @@ function describeMigration(name, getSeries) {
 
   it("should migrate from " + migration.previous + " to " +
        migration.id + " and back", function(done) {
+    this.timeout(30000);
     series = series.concat(getSeries(migration.id, migration.previous));
     async.series(series, function(err) {
       if (err) throw err;

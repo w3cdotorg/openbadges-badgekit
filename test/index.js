@@ -1,9 +1,17 @@
+require('should');
 var async = require('async');
 var migrations = require('../lib/migrations');
 var config = require('../app/lib/config');
 var db = require('../app/lib/db');
 var connection = db.getDb("TEST_DATABASE");
 const DB_CONFIG = db.getDbConfig("TEST_DATABASE");
+
+// Root-level hook: close the shared TEST_DATABASE connection once the whole
+// suite has finished, so `mocha test/*.test.js` exits on its own instead of
+// hanging on the open mysql socket (mocha >=4 no longer force-exits).
+after(function (done) {
+  connection.close(done);
+});
 
 exports.up = function up(options) {
   options = options || {};
